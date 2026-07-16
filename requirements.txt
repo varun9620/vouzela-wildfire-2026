@@ -1,0 +1,9 @@
+requests>=2.31
+tqdm>=4.66
+python-dotenv>=1.0
+xarray>=2023.1
+netCDF4>=1.6
+pandas>=2.0
+matplotlib>=3.7
+jupyter>=1.0
+nbconvert>=7.0

@@ -1,0 +1,37 @@
+name: Download TROPOMI Data (Vouzela Wildfire, 2-3 July 2026)
+
+# Run manually from the Actions tab, or on a schedule if you uncomment it below.
+on:
+  workflow_dispatch: {}
+  # schedule:
+  #   - cron: "0 6 * * *"   # example: run daily at 06:00 UTC
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300   # GitHub Actions hard cap is 6 hours (360 min) on free runners
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run TROPOMI download
+        env:
+          CDSE_EMAIL: ${{ secrets.CDSE_EMAIL }}
+          CDSE_PASSWORD: ${{ secrets.CDSE_PASSWORD }}
+        run: python scripts/download_tropomi.py
+
+      - name: Upload downloaded data as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tropomi-data-2026-07-02-03
+          path: data/
+          retention-days: 14
