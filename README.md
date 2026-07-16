@@ -73,15 +73,6 @@ This repo includes `.github/workflows/download-tropomi.yml`, which runs the same
    - `CDSE_PASSWORD` — your Copernicus Data Space Ecosystem password
    (These are encrypted by GitHub and never appear in logs or code.)
 
-**To run it:**
-1. Go to the **Actions** tab in your repo.
-2. Select **"Download TROPOMI Data (Vouzela Wildfire, 2-3 July 2026)"** in the left sidebar.
-3. Click **Run workflow** → **Run workflow** (green button).
-4. Wait for it to finish (progress shown live in the run log).
-5. Once it's done, open the completed run and download the **`tropomi-data-2026-07-02-03`** artifact (zip) from the bottom of the run summary page — that's your `data/` folder.
-
-Artifacts are kept for 14 days by default (configurable in the workflow file) and don't get committed to the repo, so your git history stays clean of large binary `.nc` files.
-
 ## Analysis notebook
 
 `notebooks/analysis.ipynb` covers all six species (CO, NO₂, SO₂, HCHO, CH₄, O₃) for **2 July** (ignition) and **3 July** (plume-image day):
@@ -92,19 +83,7 @@ Artifacts are kept for 14 days by default (configurable in the workflow file) an
 - One combined 2×3 overview figure of all species on 3 July
 - Optional overlay of NASA FIRMS active-fire hotspots, if you supply `data/firms_hotspots.csv` (download from https://firms.modaps.eosdis.nasa.gov/download/)
 
-Run it after populating `data/` (via the script or the GitHub Action artifact):
 
-```bash
-jupyter notebook notebooks/analysis.ipynb
-# or, to regenerate outputs from the command line:
-jupyter nbconvert --to notebook --execute --inplace notebooks/analysis.ipynb
-```
-
-If `data/` is empty, the notebook still runs end-to-end and prints `no data yet` for anything missing, instead of erroring — so you can commit/preview it before the download finishes.
-
-### Further ideas
-- Reproject onto a westward transect over the Atlantic to trace the full 620 km plume documented by Sentinel-3
-- Animate the plume's westward drift across successive orbit passes
 
 ## License
 
