@@ -155,7 +155,6 @@ Everything else is numbered:
 | 11 | **Day-over-day difference maps** — the figure that actually shows a plume |
 | 12 | **Like-for-like statistics** — change over cells observed on *both* days |
 | 13 | **VIIRS fire counts** — daily detections, FRP time series, detection maps. Also the
-  fastest way to confirm you have the right data window — see the data status warning above |
 | 14 | Cross-check: do the fire counts line up with the gas columns? |
 | 15 | CO vs NO₂ binned onto a common 0.25° grid, with correlation |
 | 16 | Interpretation notes and caveats |
