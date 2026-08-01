@@ -50,9 +50,9 @@ vouzela-wildfire-2026/
 ├── notebooks/
 │   └── analysis.ipynb        # CO + NO2 + VIIRS fire counts, day 1 vs day 2
 ├── data/                     # downloaded files land here (git-ignored)
-│   ├── CO/                   # S5P TROPOMI .nc  +  Metop IASI .nc
-│   ├── NO2/                  # OMI/Aura OMNO2d .he5
-│   └── fire_nrt_SV-C2_*.csv  # NASA FIRMS VIIRS active-fire export
+│   ├── CO/                   # S5P TROPOMI .nc  +  Metop IASI .nc (not in the folder)
+│   ├── NO2/                  # OMI/Aura OMNO2d .he5 (not in the folder)
+│   └── fire_nrt_SV-C2_*.csv  # NASA FIRMS VIIRS active-fire export (not in the folder)
 ├── .github/workflows/
 │   └── download-tropomi.yml  # run the download as a GitHub Action
 └── docs/
@@ -169,12 +169,7 @@ Everything else is numbered:
 | 15 | CO vs NO₂ binned onto a common 0.25° grid, with correlation |
 | 16 | Interpretation notes and caveats |
 
-### Methodology choices I'd want a reviewer to know about
-
-**Filename parsing.** TROPOMI filenames end with a *processing* timestamp, not a sensing
-one. A naive substring match on the date silently misfiles granules — e.g.
-`...20260602T002507_..._20260603T142310.nc` was sensed on 2 June but processed on 3 June.
-Section 2 anchors a regex to the sensing-start field instead.
+### Methodology choices 
 
 **QA threshold.** I filter TROPOMI CO at `qa_value > 0.5`, which is what the CO product
 documentation recommends. The stricter 0.75 that gets used for NO₂ throws away usable plume
@@ -189,11 +184,6 @@ that the region box is too large for the amount of data — shrink the box.
 
 **No interpolation, anywhere.** Gridding takes the mean of observations that fall in a cell.
 Cells with no observations stay `NaN` and render grey. A map should not invent data.
-
-**Like-for-like day comparison.** Comparing each day's full sample is unsafe when coverage
-differs — in one test run OMI had 647 valid cells on day 1 against 1,634 on day 2, and the
-resulting "+89% NO₂" was mostly a change in *which cells were observed*. Section 12
-recomputes changes over only the cells seen on both days.
 
 **Fire counts are pixel counts, not fire counts.** One large fire produces many 375 m
 detections. VIIRS also only sees the fire on overpass and through clear sky, so a low count
