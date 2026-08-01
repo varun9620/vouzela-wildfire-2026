@@ -9,33 +9,6 @@ This repository tracks and analyzes the **Vouzela wildfire**, which broke out in
 - **Satellite observation:** a Copernicus **Sentinel-3** satellite imaged the fire on **3 July 2026 at 10:38 UTC**, capturing a smoke plume drifting westward over the Atlantic Ocean, extending approximately **620 km**
 - **Source:** [Copernicus / EU Space Support Office — "Portugal wildfires send smoke over the Atlantic Ocean"](https://eu-space.europa.eu/components/earth-observation-copernicus/image-of-the-day/portugal-wildfires-send-smoke-over-atlantic-ocean); [Euronews coverage](https://www.euronews.com/2026/07/03/portugal-over-1000-firefighters-battle-wildfires-on-the-ground)
 
----
-
-## ⚠️ Data status — check before interpreting any output
-
-**The notebook config is correct. The data files on disk may not be yet.**
-
-`notebooks/analysis.ipynb` has been corrected: `EVENT_DATES` in the config cell is now
-`2026-07-02` / `2026-07-03`, matching the actual event. The notebook is date-agnostic
-downstream of that cell — everything follows from `EVENT_DATES`/`DATE_KEYS` — so no other
-code changes are needed.
-
-**What still needs checking is `data/` itself.** An earlier working set had every granule
-carrying a **June** sensing date, one month before the fire:
-
-```
-S5P_OFFL_L2__CO_____20260602T121538_...     <- 2 Jun (wrong window)
-IASI_METOPB_L2_CO_20260603_ULB-LATMOS...    <- 3 Jun (wrong window)
-OMI-Aura_L3-OMNO2d_2026m0602_v004-...       <- 2 Jun (wrong window)
-```
-
-That mismatch is why an earlier run of the CO analysis showed **no plume**: the
-95th-percentile CO column *fell* slightly between the two days, and the single hottest CO
-pixel was on the first day rather than the second — a quiet pre-event baseline, not a
-620 km smoke plume.
-
-**Before drawing conclusions from a fresh run, confirm all four inputs actually cover
-2026-07-02 / 2026-07-03:**
 
 | Input | Where it lands | How to check |
 |---|---|---|
