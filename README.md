@@ -13,7 +13,7 @@ This repository tracks and analyzes the **Vouzela wildfire**, which broke out in
 
 ## ⚠️ Read this before interpreting any output
 
-**The satellite files currently in `data/` are dated 2–3 June 2026, not 2–3 July 2026.**
+**The satellite files currently in `data/` are dated 2–3 June 2026.**
 
 Every granule in the working set carries a June sensing date:
 
