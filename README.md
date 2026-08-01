@@ -11,28 +11,43 @@ This repository tracks and analyzes the **Vouzela wildfire**, which broke out in
 
 ---
 
-## ⚠️ Read this before interpreting any output
+## ⚠️ Data status — check before interpreting any output
 
-**The satellite files currently in `data/` are dated 2–3 June 2026.**
+**The notebook config is correct. The data files on disk may not be yet.**
 
-Every granule in the working set carries a June sensing date:
+`notebooks/analysis.ipynb` has been corrected: `EVENT_DATES` in the config cell is now
+`2026-07-02` / `2026-07-03`, matching the actual event. The notebook is date-agnostic
+downstream of that cell — everything follows from `EVENT_DATES`/`DATE_KEYS` — so no other
+code changes are needed.
+
+**What still needs checking is `data/` itself.** An earlier working set had every granule
+carrying a **June** sensing date, one month before the fire:
 
 ```
-S5P_OFFL_L2__CO_____20260602T121538_...     <- 2 June
-IASI_METOPB_L2_CO_20260603_ULB-LATMOS...    <- 3 June
-OMI-Aura_L3-OMNO2d_2026m0602_v004-...       <- 2 June
+S5P_OFFL_L2__CO_____20260602T121538_...     <- 2 Jun (wrong window)
+IASI_METOPB_L2_CO_20260603_ULB-LATMOS...    <- 3 Jun (wrong window)
+OMI-Aura_L3-OMNO2d_2026m0602_v004-...       <- 2 Jun (wrong window)
 ```
 
-That is one month before the fire this repo is about. It is almost certainly why the CO
-analysis shows **no plume**: the 95th-percentile CO column *fell* slightly between the two
-days, and the single hottest CO pixel was on the first day rather than the second — which
-is what a quiet pre-event baseline looks like, not a 620 km smoke plume.
+That mismatch is why an earlier run of the CO analysis showed **no plume**: the
+95th-percentile CO column *fell* slightly between the two days, and the single hottest CO
+pixel was on the first day rather than the second — a quiet pre-event baseline, not a
+620 km smoke plume.
 
-Before drawing conclusions, re-run the download for **2026-07-02** and **2026-07-03** and
-confirm the sensing dates in the filenames. The notebook itself is date-agnostic: change
-`EVENT_DATES` in the config cell and everything downstream follows. The VIIRS fire counts
-in section 13 are the fastest way to confirm you have the right window — if the fire is in
-your data, the detection count near Vouzela will jump on the ignition day.
+**Before drawing conclusions from a fresh run, confirm all four inputs actually cover
+2026-07-02 / 2026-07-03:**
+
+| Input | Where it lands | How to check |
+|---|---|---|
+| TROPOMI CO | `data/CO/` | filenames should contain `20260702...` / `20260703...` at the *sensing-start* field (see § 2 of the notebook — it's not a straight substring match, the processing timestamp at the end of the filename is a different date) |
+| IASI CO | `data/CO/` | filenames should contain `_20260702_` / `_20260703_` |
+| OMI NO₂ | `data/NO2/` | filenames should contain `2026m0702` / `2026m0703` |
+| VIIRS fire (FIRMS) | `data/fire_nrt_SV-C2_*.csv` | re-download must span 2 July onward — a nearby-but-wrong window (e.g. 1–3 July when you need 2–3 July, or June data) will silently filter to zero |
+
+The fastest single check is **§ 13, VIIRS fire counts**: if the fire is genuinely in your
+data, the detection count near Vouzela jumps sharply on the ignition day (2 July). That
+section also prints an explicit warning if `EVENT_DATES` isn't found in the loaded FIRMS
+data at all, so it's the first thing to look at after any re-download.
 
 ---
 
@@ -115,8 +130,8 @@ date window. Files land in `data/<SPECIES>/` with a `manifest.json` per species.
 Already-downloaded files are skipped on rerun; failed downloads retry with backoff on
 429/5xx.
 
-**Check the dates in the returned filenames**, not just that files arrived. See the warning
-at the top of this README.
+**Check the dates in the returned filenames**, not just that files arrived. See the data
+status section at the top of this README.
 
 ### Option B — GitHub Actions (runs in the cloud, no local setup)
 
@@ -141,13 +156,15 @@ the results as a downloadable **workflow artifact**.
   daily `.he5`. Needs a free Earthdata login. Drop into `data/NO2/`.
 - **VIIRS fire** — [FIRMS download](https://firms.modaps.eosdis.nasa.gov/download/), choose
   **VIIRS S-NPP + NOAA-20 375 m**, area Portugal, and a date range a few days wider than the
-  event so there's a before/after baseline. Drop the CSV into `data/`.
+  event (e.g. 2026-06-29 to 2026-07-06) so there's a before/after baseline. Drop the CSV
+  into `data/`.
 
 ## Analysis notebook
 
 `notebooks/analysis.ipynb`, 16 sections:
 
 The first cell holds the config: paths, event dates, region box, and per-product metadata.
+`EVENT_DATES` is currently set to `2026-07-02` (ignition) and `2026-07-03` (plume day).
 Everything else is numbered:
 
 | § | What it does |
@@ -164,7 +181,8 @@ Everything else is numbered:
 | 10 | Maps of all three products, no-data cells drawn in grey |
 | 11 | **Day-over-day difference maps** — the figure that actually shows a plume |
 | 12 | **Like-for-like statistics** — change over cells observed on *both* days |
-| 13 | **VIIRS fire counts** — daily detections, FRP time series, detection maps |
+| 13 | **VIIRS fire counts** — daily detections, FRP time series, detection maps. Also the
+  fastest way to confirm you have the right data window — see the data status warning above |
 | 14 | Cross-check: do the fire counts line up with the gas columns? |
 | 15 | CO vs NO₂ binned onto a common 0.25° grid, with correlation |
 | 16 | Interpretation notes and caveats |
