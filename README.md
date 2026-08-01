@@ -9,6 +9,33 @@ This repository tracks and analyzes the **Vouzela wildfire**, which broke out in
 - **Satellite observation:** a Copernicus **Sentinel-3** satellite imaged the fire on **3 July 2026 at 10:38 UTC**, capturing a smoke plume drifting westward over the Atlantic Ocean, extending approximately **620 km**
 - **Source:** [Copernicus / EU Space Support Office — "Portugal wildfires send smoke over the Atlantic Ocean"](https://eu-space.europa.eu/components/earth-observation-copernicus/image-of-the-day/portugal-wildfires-send-smoke-over-atlantic-ocean); [Euronews coverage](https://www.euronews.com/2026/07/03/portugal-over-1000-firefighters-battle-wildfires-on-the-ground)
 
+---
+
+## ⚠️ Read this before interpreting any output
+
+**The satellite files currently in `data/` are dated 2–3 June 2026, not 2–3 July 2026.**
+
+Every granule in the working set carries a June sensing date:
+
+```
+S5P_OFFL_L2__CO_____20260602T121538_...     <- 2 June
+IASI_METOPB_L2_CO_20260603_ULB-LATMOS...    <- 3 June
+OMI-Aura_L3-OMNO2d_2026m0602_v004-...       <- 2 June
+```
+
+That is one month before the fire this repo is about. It is almost certainly why the CO
+analysis shows **no plume**: the 95th-percentile CO column *fell* slightly between the two
+days, and the single hottest CO pixel was on the first day rather than the second — which
+is what a quiet pre-event baseline looks like, not a 620 km smoke plume.
+
+Before drawing conclusions, re-run the download for **2026-07-02** and **2026-07-03** and
+confirm the sensing dates in the filenames. The notebook itself is date-agnostic: change
+`EVENT_DATES` in the config cell and everything downstream follows. The VIIRS fire counts
+in section 13 are the fastest way to confirm you have the right window — if the fire is in
+your data, the detection count near Vouzela will jump on the ignition day.
+
+---
+
 ## What's in this repo
 
 ```
@@ -19,10 +46,13 @@ vouzela-wildfire-2026/
 ├── .gitignore
 ├── LICENSE
 ├── scripts/
-│   └── download_tropomi.py   # pulls Sentinel-5P TROPOMI trace-gas data for 2–3 July 2026
+│   └── download_tropomi.py   # pulls Sentinel-5P TROPOMI trace-gas data
 ├── notebooks/
-│   └── analysis.ipynb        # prints + plots for all 6 species, 2 July vs 3 July
-├── data/                     # downloaded .nc files land here (git-ignored)
+│   └── analysis.ipynb        # CO + NO2 + VIIRS fire counts, day 1 vs day 2
+├── data/                     # downloaded files land here (git-ignored)
+│   ├── CO/                   # S5P TROPOMI .nc  +  Metop IASI .nc
+│   ├── NO2/                  # OMI/Aura OMNO2d .he5
+│   └── fire_nrt_SV-C2_*.csv  # NASA FIRMS VIIRS active-fire export
 ├── .github/workflows/
 │   └── download-tropomi.yml  # run the download as a GitHub Action
 └── docs/
@@ -31,13 +61,24 @@ vouzela-wildfire-2026/
 
 ## Data sources
 
-| Layer | Instrument | Purpose |
-|---|---|---|
-| True-colour / smoke plume imagery | Sentinel-3 OLCI/SLSTR | Visual confirmation of plume extent (620 km, 3 July 10:38 UTC) |
-| Trace-gas columns (CO, NO₂, SO₂, HCHO, CH₄, O₃) | Sentinel-5P TROPOMI | Quantify combustion products in the plume |
-| Active fire hotspots | NASA FIRMS (VIIRS/MODIS) | Ground-truth fire locations for source attribution |
+| Layer | Instrument / product | Level | Format | What I use it for |
+|---|---|---|---|---|
+| Smoke plume imagery | Sentinel-3 OLCI/SLSTR | L1/L2 | — | Visual confirmation of plume extent (620 km, 3 July 10:38 UTC) |
+| CO total column | Sentinel-5P TROPOMI (`S5P_OFFL_L2__CO____`) | L2 swath | netCDF (`PRODUCT` group) | Primary combustion tracer at ~5.5 × 3.5 km |
+| CO total column | Metop-B & Metop-C IASI (ULB-LATMOS FORLI) | L2 along-track | netCDF (flat) | Independent thermal-IR CO, sensitive to lofted plumes, works at night |
+| NO₂ tropospheric column | OMI/Aura `OMNO2d` | L3 gridded 0.25° | HDF-EOS5 (`.he5`) | Short-lived combustion indicator, near-source |
+| Active fire detections | NASA FIRMS VIIRS S-NPP + NOAA-20 (375 m) | — | CSV | Fire counts, FRP, and source attribution |
 
-This repo's script pulls the TROPOMI layer via the [Copernicus Data Space Ecosystem (CDSE)](https://dataspace.copernicus.eu) OData API.
+**Scope change from the first version of this project.** The original notebook tried all six
+TROPOMI species (CO, NO₂, SO₂, HCHO, CH₄, O₃). I cut it back to **CO and NO₂ plus fire
+counts**, because those are the three layers that actually carry signal for a single
+mid-latitude wildfire. SO₂ is diagnostic for volcanic and industrial sources rather than
+biomass burning, CH₄ enhancement from one fire is lost in the background column, and O₃ can
+move in either direction near fresh smoke. Carrying them added noise and no evidence.
+
+**The NO₂ files are not TROPOMI.** They are OMI Level 3 daily 0.25° grids in HDF-EOS5. The
+swath/QA loading path used for TROPOMI does not apply to them, so the notebook has a
+separate loader built on `h5py`.
 
 ## Setup
 
@@ -53,6 +94,15 @@ Register a free CDSE account at https://dataspace.copernicus.eu if you don't hav
 
 **Never commit `.env` or real credentials.** `.gitignore` already excludes it.
 
+### Dependencies worth calling out
+
+- `h5netcdf` — the notebook opens the TROPOMI `PRODUCT` group with this engine. The default
+  `netCDF4` engine has a bug that raises a spurious `KeyError` when opening many group
+  datasets in a loop.
+- `h5py` — required for the OMI `.he5` files.
+- `cartopy` — maps. It needs GEOS/PROJ system libraries; conda is the least painful route.
+- `scipy` — 2-D binning for the gridding step.
+
 ## Downloading the data
 
 ### Option A — locally
@@ -60,11 +110,18 @@ Register a free CDSE account at https://dataspace.copernicus.eu if you don't hav
 python scripts/download_tropomi.py
 ```
 
-This fetches all Sentinel-5P L2 products (CO, NO₂, SO₂, HCHO, CH₄, O₃) over the Iberian Peninsula bounding box, restricted to **2–3 July 2026** — the ignition day and the day the plume image was acquired. Files land in `data/<SPECIES>/`, with a `manifest.json` per species. Already-downloaded files are skipped automatically on rerun; failed downloads retry with backoff on 429/5xx.
+Fetches Sentinel-5P L2 products over the Iberian Peninsula bounding box for the configured
+date window. Files land in `data/<SPECIES>/` with a `manifest.json` per species.
+Already-downloaded files are skipped on rerun; failed downloads retry with backoff on
+429/5xx.
+
+**Check the dates in the returned filenames**, not just that files arrived. See the warning
+at the top of this README.
 
 ### Option B — GitHub Actions (runs in the cloud, no local setup)
 
-This repo includes `.github/workflows/download-tropomi.yml`, which runs the same script on GitHub's servers and saves the results as a downloadable **workflow artifact**.
+`.github/workflows/download-tropomi.yml` runs the same script on GitHub's servers and saves
+the results as a downloadable **workflow artifact**.
 
 **One-time setup:**
 1. In your repo on GitHub, go to **Settings → Secrets and variables → Actions → New repository secret**.
@@ -73,18 +130,110 @@ This repo includes `.github/workflows/download-tropomi.yml`, which runs the same
    - `CDSE_PASSWORD` — your Copernicus Data Space Ecosystem password
    (These are encrypted by GitHub and never appear in logs or code.)
 
+### The other three layers are manual
+
+`download_tropomi.py` only covers Sentinel-5P. The rest I download by hand:
+
+- **IASI CO** — [IASI portal / AERIS](https://iasi.aeris-data.fr/), product
+  `IASI_METOP{B,C}_L2_CO_<YYYYMMDD>_ULB-LATMOS_*.nc`. Drop into `data/CO/` alongside the
+  S5P files; the notebook separates the two by filename.
+- **OMI NO₂** — [GES DISC `OMNO2d`](https://disc.gsfc.nasa.gov/datasets/OMNO2d_003/summary),
+  daily `.he5`. Needs a free Earthdata login. Drop into `data/NO2/`.
+- **VIIRS fire** — [FIRMS download](https://firms.modaps.eosdis.nasa.gov/download/), choose
+  **VIIRS S-NPP + NOAA-20 375 m**, area Portugal, and a date range a few days wider than the
+  event so there's a before/after baseline. Drop the CSV into `data/`.
+
 ## Analysis notebook
 
-`notebooks/analysis.ipynb` covers all six species (CO, NO₂, SO₂, HCHO, CH₄, O₃) for **2 July** (ignition) and **3 July** (plume-image day):
+`notebooks/analysis.ipynb`, 16 sections:
 
-- Prints per-species, per-day summary stats (valid pixel count, mean, max, min after QA filtering)
-- Plots a side-by-side map for each species (2 July vs 3 July), with Vouzela marked
-- Builds a combined summary table (`pandas.DataFrame`) showing % change in mean column between the two days
-- One combined 2×3 overview figure of all species on 3 July
-- Optional overlay of NASA FIRMS active-fire hotspots, if you supply `data/firms_hotspots.csv` (download from https://firms.modaps.eosdis.nasa.gov/download/)
+The first cell holds the config: paths, event dates, region box, and per-product metadata.
+Everything else is numbered:
 
+| § | What it does |
+|---|---|
+| 1 | Helper functions adapted from the EUMETSAT FANGS training material |
+| 2 | **File inventory** — parses the *sensing* date out of each filename by regex |
+| 3 | TROPOMI CO loader (QA filter, geographic subset, unit conversion) |
+| 4 | IASI CO loader (quality-flag filter, Metop-B + Metop-C combined) |
+| 5 | OMI NO₂ loader (HDF-EOS5, calibration attributes, coordinate reconstruction) |
+| 6 | VIIRS FIRMS loader (confidence filter, region clip, per-day totals) |
+| 7 | Loads everything into a `results[product][date]` structure |
+| 8 | Summary statistics table, day 1 vs day 2 |
+| 9 | **Gridding** — bins each day onto one regular grid, resolution chosen from the data |
+| 10 | Maps of all three products, no-data cells drawn in grey |
+| 11 | **Day-over-day difference maps** — the figure that actually shows a plume |
+| 12 | **Like-for-like statistics** — change over cells observed on *both* days |
+| 13 | **VIIRS fire counts** — daily detections, FRP time series, detection maps |
+| 14 | Cross-check: do the fire counts line up with the gas columns? |
+| 15 | CO vs NO₂ binned onto a common 0.25° grid, with correlation |
+| 16 | Interpretation notes and caveats |
 
+### Methodology choices I'd want a reviewer to know about
+
+**Filename parsing.** TROPOMI filenames end with a *processing* timestamp, not a sensing
+one. A naive substring match on the date silently misfiles granules — e.g.
+`...20260602T002507_..._20260603T142310.nc` was sensed on 2 June but processed on 3 June.
+Section 2 anchors a regex to the sensing-start field instead.
+
+**QA threshold.** I filter TROPOMI CO at `qa_value > 0.5`, which is what the CO product
+documentation recommends. The stricter 0.75 that gets used for NO₂ throws away usable plume
+pixels. If a thick plume seems to be missing entirely, try dropping to 0.3 — heavy smoke can
+fail QA.
+
+**Grid resolution is chosen from the data, not hard-coded.** With ~10,000 QA-passing CO
+pixels over a 12° × 9° box, a 0.05° grid has 43,200 cells and comes out ~80% empty and
+speckled. The notebook coarsens the grid until most cells are populated and prints the
+trade-off so you can override it. If nothing reaches the target, the honest conclusion is
+that the region box is too large for the amount of data — shrink the box.
+
+**No interpolation, anywhere.** Gridding takes the mean of observations that fall in a cell.
+Cells with no observations stay `NaN` and render grey. A map should not invent data.
+
+**Like-for-like day comparison.** Comparing each day's full sample is unsafe when coverage
+differs — in one test run OMI had 647 valid cells on day 1 against 1,634 on day 2, and the
+resulting "+89% NO₂" was mostly a change in *which cells were observed*. Section 12
+recomputes changes over only the cells seen on both days.
+
+**Fire counts are pixel counts, not fire counts.** One large fire produces many 375 m
+detections. VIIRS also only sees the fire on overpass and through clear sky, so a low count
+can mean "cloudy", not "out". I report summed FRP alongside the counts because they answer
+different questions: count is roughly area, FRP is roughly intensity.
+
+### Known limitations
+
+- **Two days is not a baseline.** To claim an anomaly, pull the same fields for the
+  preceding week and compare against that, not against a single prior day.
+- **TROPOMI and IASI will not agree pixel-for-pixel**, and shouldn't. TROPOMI is shortwave-IR
+  and most sensitive near the surface; IASI is thermal-IR with weak near-surface sensitivity
+  but good free-tropospheric sensitivity. For a lofted plume IASI can show enhancement that
+  TROPOMI underplays.
+- **NO₂ has an hours-long lifetime** against CO's weeks, and OMNO2d dilutes a fire across
+  ~625 km² cells. A weak NO₂ signal does not contradict a clear CO plume. Lisbon and Porto
+  will dominate the NO₂ field regardless of the fire.
+- **OMI row anomaly.** Some cross-track positions have been unusable since 2007. The L3
+  product screens them out, so cells go missing for reasons unrelated to cloud.
+- **Cloud drives everything.** "Fewer valid pixels" usually means "cloudier", not "less
+  pollution".
+
+## Code provenance
+
+The loading, masking, and plotting helpers are adapted from published training material.
+I've kept the original function names so they're easy to cross-reference:
+
+- EUMETSAT FANGS — [Metop-B IASI Total Column CO L2](https://fire.trainhub.eumetsat.int/docs/figure3_Metop-B_IASI_L2_CO.html)
+- EUMETSAT FANGS — [Sentinel-5P TROPOMI CO L2](https://fire.trainhub.eumetsat.int/docs/figure5_Sentinel-5P_TROPOMI_CO.html)
+- EUMETSAT FANGS — [shared `functions.ipynb`](https://fire.trainhub.eumetsat.int/docs/functions.html) (© 2022 EUMETSAT, MIT licence)
+- DrivenData — [How to Estimate Surface-level NO2 using OMI Column NO2 Data](https://drivendata.co/blog/predict-no2-benchmark)
+
+Two modernisations vs. the originals: `plt.cm.get_cmap` → `plt.get_cmap` (removed in
+Matplotlib ≥ 3.9), and the visualisation helpers accept an existing `ax` so days can be
+drawn side by side.
+
+IASI is a joint EUMETSAT/CNES mission; CO data production by EUMETSAT under AC SAF, retrieval
+algorithm by ULB-LATMOS (FORLI), data access via AERIS. OMI data courtesy NASA GES DISC.
+FIRMS data courtesy NASA Earthdata.
 
 ## License
 
-Code in this repository is MIT licensed (see `LICENSE`). Satellite imagery and data remain subject to the [Copernicus data licence](https://dataspace.copernicus.eu/terms-and-conditions).
+Code in this repository is MIT licensed (see `LICENSE`). Satellite imagery and data remain subject to the [Copernicus data licence](https://dataspace.copernicus.eu/terms-and-conditions), and to the respective NASA and EUMETSAT/AERIS data policies for the OMI, VIIRS, and IASI products.
